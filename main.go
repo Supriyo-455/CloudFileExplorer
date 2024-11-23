@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/Supriyo-455/distributed_storage/p2p"
+	"github.com/Supriyo-455/CloudFileExplorer/p2p"
 )
 
 func main() {
