@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/Supriyo-455/distributed_storage/p2p"
+	"github.com/Supriyo-455/CloudFileExplorer/p2p"
 )
 
 func OnPeer(peer p2p.Peer) error {
