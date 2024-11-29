@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"strings"
@@ -73,7 +73,11 @@ func (s *Store) HasKey(key string) bool {
 	fullPathWithRoot := s.Root + "/" + fullPath
 
 	_, err := os.Stat(fullPathWithRoot)
-	return err == fs.ErrNotExist
+	return !errors.Is(err, os.ErrNotExist)
+}
+
+func (s *Store) Clear() error {
+	return os.RemoveAll(s.Root)
 }
 
 func (s *Store) Delete(key string) error {
@@ -89,7 +93,7 @@ func (s *Store) Delete(key string) error {
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
-	f, err := s.ReadStream(key)
+	f, err := s.readStream(key)
 	if err != nil {
 		return nil, nil
 	}
@@ -102,14 +106,18 @@ func (s *Store) Read(key string) (io.Reader, error) {
 	return buf, err
 }
 
-func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
+func (s *Store) Write(key string, r io.Reader) error {
+	return s.writeStream(key, r)
+}
+
+func (s *Store) readStream(key string) (io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)
 	fullPath := pathKey.FullPath()
 	fullPathWithRoot := s.Root + "/" + fullPath
 	return os.Open(fullPathWithRoot)
 }
 
-func (s *Store) WriteStream(key string, r io.Reader) error {
+func (s *Store) writeStream(key string, r io.Reader) error {
 	pathKey := s.PathTransformFunc(key)
 	pathName := pathKey.PathName
 	pathNameWithRoot := s.Root + "/" + pathName

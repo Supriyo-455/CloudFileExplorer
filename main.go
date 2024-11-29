@@ -1,37 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/Supriyo-455/CloudFileExplorer/p2p"
 )
 
-func OnPeer(peer p2p.Peer) error {
-	peer.Close()
-	fmt.Println("doing some logic with the peer outside of TCPTransport")
-	return nil
-}
-
 func main() {
-	tcpOpts := p2p.TCPTransportOps{
+	tcpTransportOpts := p2p.TCPTransportOps{
 		ListenAddr:    ":3000",
 		HandShakeFunc: p2p.NOPHandshakeFunc,
 		Decoder:       p2p.DefaultDecoder{},
-		OnPeer:        OnPeer,
+		// TODO: OnPeer function
 	}
 
-	tr := p2p.NewTCPTransport(tcpOpts)
+	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
 
-	go func() {
-		for {
-			msg := <-tr.Consume()
-			fmt.Printf("%+v\n", msg)
-		}
-	}()
+	fsOpts := FileServerOpts{
+		ListenAddr:        tcpTransportOpts.ListenAddr,
+		StorageRoot:       "3000_network",
+		PathTransformFunc: CASPathTransformFunc,
+		Transport:         tcpTransport,
+	}
 
-	err := tr.ListenAndAccept()
-	if err != nil {
+	fs := NewFileServer(fsOpts)
+
+	if err := fs.Start(); err != nil {
 		log.Fatal(err)
 	}
 
