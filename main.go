@@ -6,9 +6,9 @@ import (
 	"github.com/Supriyo-455/CloudFileExplorer/p2p"
 )
 
-func main() {
+func makeServer(listenAddr string, root string, nodes []string) *FileServer {
 	tcpTransportOpts := p2p.TCPTransportOps{
-		ListenAddr:    ":3000",
+		ListenAddr:    listenAddr,
 		HandShakeFunc: p2p.NOPHandshakeFunc,
 		Decoder:       p2p.DefaultDecoder{},
 		// TODO: OnPeer function
@@ -18,16 +18,22 @@ func main() {
 
 	fsOpts := FileServerOpts{
 		ListenAddr:        tcpTransportOpts.ListenAddr,
-		StorageRoot:       "3000_network",
+		StorageRoot:       root,
 		PathTransformFunc: CASPathTransformFunc,
 		Transport:         tcpTransport,
+		BootstrapNodes:    nodes,
 	}
 
-	fs := NewFileServer(fsOpts)
+	return NewFileServer(fsOpts)
+}
 
-	if err := fs.Start(); err != nil {
-		log.Fatal(err)
-	}
+func main() {
+	s1 := makeServer(":3000", "HmzNetwork", []string{})
+	s2 := makeServer(":4000", "HmzNetwork", []string{":4000"})
 
-	select {}
+	go func() {
+		log.Fatal(s1.Start())
+	}()
+
+	s2.Start()
 }

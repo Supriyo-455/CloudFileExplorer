@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"errors"
 	"log"
 	"net"
 )
@@ -16,13 +17,6 @@ type TCPPeer struct {
 	outbound bool
 }
 
-func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
-	return &TCPPeer{
-		conn:     conn,
-		outbound: outbound,
-	}
-}
-
 type TCPTransportOps struct {
 	ListenAddr    string
 	HandShakeFunc HandShakeFunc
@@ -36,6 +30,24 @@ type TCPTransport struct {
 	rpcch            chan RPC
 }
 
+func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
+	return &TCPPeer{
+		conn:     conn,
+		outbound: outbound,
+	}
+}
+
+// Close() implements peer interface
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
+}
+
+// RemoteAddr() implements peer interface and will return
+// the remote address of its the underlying connection.
+func (p *TCPPeer) RemoteAddr() net.Addr {
+	return p.conn.RemoteAddr()
+}
+
 func NewTCPTransport(opts TCPTransportOps) *TCPTransport {
 	return &TCPTransport{
 		TCPTransportOpts: opts,
@@ -47,10 +59,12 @@ func (t *TCPTransport) Consume() <-chan RPC {
 	return t.rpcch
 }
 
-func (p *TCPPeer) Close() error {
-	return p.conn.Close()
+// Close() implements transport interface
+func (t *TCPTransport) Close() error {
+	return t.listener.Close()
 }
 
+// ListenAndAccept() implements transport interface
 func (t *TCPTransport) ListenAndAccept() error {
 	var err error
 
@@ -69,15 +83,21 @@ func (t *TCPTransport) ListenAndAccept() error {
 func (t *TCPTransport) startAcceptLoop() {
 	for {
 		conn, err := t.listener.Accept()
+
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+
 		if err != nil {
 			log.Printf("TCP accept error: %s\n", err)
 		}
+
 		log.Printf("new incoming connection %+v\n", conn)
-		go t.handleConn(conn)
+		go t.handleConn(conn, false)
 	}
 }
 
-func (t *TCPTransport) handleConn(conn net.Conn) {
+func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 
 	defer func() {
@@ -85,7 +105,7 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 		conn.Close()
 	}()
 
-	peer := NewTCPPeer(conn, true)
+	peer := NewTCPPeer(conn, outbound)
 	tcpOpts := t.TCPTransportOpts
 
 	if err = tcpOpts.HandShakeFunc(peer); err != nil {
@@ -113,4 +133,16 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 		rpc.From = conn.RemoteAddr()
 		t.rpcch <- rpc
 	}
+}
+
+// Dial() Implements the transport interface
+func (t *TCPTransport) Dial(addr string) error {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	go t.handleConn(conn, true)
+
+	return nil
 }
