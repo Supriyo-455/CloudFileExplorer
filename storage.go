@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const root = "hmzNetwork"
+const DEFAULT_ROOT = "hmzNetwork"
 
 // NOTE: Lots of types of transform funcs can be added, like git paths etc. etc..
 type PathTransformFunc func(string) PathKey
@@ -60,7 +60,7 @@ func NewStore(opts StoreOpts) *Store {
 		opts.PathTransformFunc = DefaultPathTransformFunc
 	}
 	if len(opts.Root) == 0 {
-		opts.Root = root
+		opts.Root = DEFAULT_ROOT
 	}
 	return &Store{
 		StoreOpts: opts,
@@ -69,19 +69,23 @@ func NewStore(opts StoreOpts) *Store {
 
 func (s *Store) HasKey(key string) bool {
 	pathKey := s.PathTransformFunc(key)
+	fullPath := pathKey.FullPath()
+	fullPathWithRoot := s.Root + "/" + fullPath
 
-	_, err := os.Stat(pathKey.FullPath())
+	_, err := os.Stat(fullPathWithRoot)
 	return err == fs.ErrNotExist
 }
 
 func (s *Store) Delete(key string) error {
 	pathKey := s.PathTransformFunc(key)
+	fullPath := pathKey.FullPath()
+	fullPathWithRoot := s.Root + "/" + fullPath
 
 	defer func() {
 		log.Printf("deleted [%s] from disk", pathKey.FileName)
 	}()
 
-	return os.Remove(pathKey.FullPath())
+	return os.Remove(fullPathWithRoot)
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
@@ -100,23 +104,26 @@ func (s *Store) Read(key string) (io.Reader, error) {
 
 func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)
-	return os.Open(pathKey.FullPath())
+	fullPath := pathKey.FullPath()
+	fullPathWithRoot := s.Root + "/" + fullPath
+	return os.Open(fullPathWithRoot)
 }
 
 func (s *Store) WriteStream(key string, r io.Reader) error {
 	pathKey := s.PathTransformFunc(key)
 	pathName := pathKey.PathName
-
-	if err := os.MkdirAll(pathName, os.ModePerm); err != nil {
+	pathNameWithRoot := s.Root + "/" + pathName
+	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
 		return err
 	}
 
 	buf := new(bytes.Buffer)
 	io.Copy(buf, r)
 
-	pathAndFileName := pathKey.FullPath()
+	fullPath := pathKey.FullPath()
+	fullPathWithRoot := s.Root + "/" + fullPath
 
-	file, err := os.Create(pathAndFileName)
+	file, err := os.Create(fullPathWithRoot)
 	if err != nil {
 		return err
 	}
@@ -126,7 +133,7 @@ func (s *Store) WriteStream(key string, r io.Reader) error {
 		return err
 	}
 
-	log.Printf("written (%d) bytes to disk: %s\n", n, pathAndFileName)
+	log.Printf("written (%d) bytes to disk: %s\n", n, fullPathWithRoot)
 
 	return nil
 }
