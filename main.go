@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"log"
+	"time"
 
 	"github.com/Supriyo-455/CloudFileExplorer/p2p"
 )
@@ -31,11 +33,22 @@ func makeServer(listenAddr string, root string, nodes []string) *FileServer {
 
 func main() {
 	s1 := makeServer(":3000", "HmzNetwork", []string{})
-	s2 := makeServer(":4000", "HmzNetwork", []string{":4000"})
+	s2 := makeServer(":4000", "HmzNetwork", []string{":3000"})
 
 	go func() {
 		log.Fatal(s1.Start())
 	}()
 
-	s2.Start()
+	go func() {
+		log.Fatal(s2.Start())
+	}()
+
+	time.Sleep(time.Second * 2)
+
+	data := bytes.NewReader([]byte("my big data file here!"))
+	if err := s2.StoreData("myPrivateData", data); err != nil {
+		log.Fatal(err)
+	}
+
+	select {}
 }
