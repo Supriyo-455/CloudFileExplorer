@@ -41,42 +41,29 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 	}
 }
 
-type Payload struct {
-	key  string
-	Data []byte
-}
-
-func (fs *FileServer) broadcast(p *Payload) error {
-	for _, peer := range fs.peers {
-		if err := gob.NewEncoder(peer).Encode(p); err != nil {
-			return err
-		}
-	}
-	return nil
+type RPC struct {
+	Payload any
 }
 
 func (fs *FileServer) StoreData(key string, r io.Reader) error {
 	// 1. Store this file to the disk
 	// 2. Broadcast this file to all known peers in the network
 
-	if err := fs.store.Write(key, r); err != nil {
-		return err
-	}
-
 	buf := new(bytes.Buffer)
-	_, err := io.Copy(buf, r)
-	if err != nil {
+	rpc := RPC{
+		Payload: []byte("storageKey"),
+	}
+	if err := gob.NewEncoder(buf).Encode(rpc); err != nil {
 		return err
 	}
 
-	p := &Payload{
-		key:  key,
-		Data: buf.Bytes(),
+	for _, peer := range fs.peers {
+		if err := peer.Send(buf.Bytes()); err != nil {
+			return err
+		}
 	}
 
-	log.Printf("bytes written(%d) : %s\n", len(p.Data), p.Data)
-
-	return fs.broadcast(p)
+	return nil
 }
 
 func (fs *FileServer) OnPeer(peer p2p.Peer) error {
@@ -122,8 +109,13 @@ func (fs *FileServer) loop() {
 
 	for {
 		select {
-		case msg := <-fs.Transport.Consume():
-			log.Println(msg)
+		case rpcTransport := <-fs.Transport.Consume():
+			var rpc RPC
+			if err := gob.NewDecoder(bytes.NewReader(rpcTransport.Payload)).Decode(&rpc); err != nil {
+				log.Fatal(err)
+			}
+			log.Println("received : ", string(rpc.Payload.([]byte)))
+
 		case <-fs.quitch:
 			return
 		}

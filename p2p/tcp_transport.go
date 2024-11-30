@@ -51,6 +51,7 @@ func NewTCPTransport(opts TCPTransportOps) *TCPTransport {
 	}
 }
 
+// Consume() implements transport interface
 func (t *TCPTransport) Consume() <-chan RPC {
 	return t.rpcch
 }
